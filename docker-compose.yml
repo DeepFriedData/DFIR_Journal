@@ -1,0 +1,12 @@
+﻿services:
+  master-registrar:
+    build: ./master-registrar
+    container_name: dfir-master-registrar
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./master-registrar/database:/app/database
+      - ./master-registrar/crypto/keys:/app/crypto/keys
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production
