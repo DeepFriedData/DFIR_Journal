@@ -1,8 +1,533 @@
 ﻿<!DOCTYPE html>
-<html>
-<head><title>DFIR Master Registrar</title></head>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DFIR Master Registrar</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --accent: #58a6ff;
+    --accent-dim: #1f6feb;
+    --danger: #f85149;
+    --warn: #d29922;
+    --success: #3fb950;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+  /* LOGIN */
+  #login-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; background: var(--bg);
+  }
+  .login-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 40px; width: 380px;
+  }
+  .login-card h1 { font-size: 1.2rem; margin-bottom: 6px; color: var(--accent); }
+  .login-card p { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+  .login-card input {
+    width: 100%; padding: 10px 12px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 0.95rem; margin-bottom: 12px;
+  }
+  .login-card input:focus { outline: none; border-color: var(--accent); }
+  .btn {
+    padding: 9px 18px; border-radius: 6px; border: none;
+    font-size: 0.9rem; cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--accent-dim); color: #fff; width: 100%; }
+  .btn-success { background: var(--success); color: #000; }
+  .btn-danger  { background: var(--danger);  color: #fff; }
+  .btn-warn    { background: var(--warn);    color: #000; }
+  .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
+  #login-error { color: var(--danger); font-size: 0.85rem; margin-top: 10px; }
+
+  /* LAYOUT */
+  #app { display: none; flex-direction: column; min-height: 100vh; }
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 12px 28px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .brand { font-size: 1rem; font-weight: 600; color: var(--accent); letter-spacing: 0.5px; }
+  .brand span { color: var(--muted); font-weight: 400; font-size: 0.85rem; margin-left: 10px; }
+  #user-info { color: var(--muted); font-size: 0.85rem; display: flex; align-items: center; gap: 12px; }
+
+  nav {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; gap: 4px; padding: 0 24px;
+  }
+  .nav-tab {
+    padding: 12px 18px; cursor: pointer; font-size: 0.9rem;
+    color: var(--muted); border-bottom: 2px solid transparent;
+    transition: color 0.15s;
+  }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  main { padding: 28px; flex: 1; max-width: 1200px; width: 100%; margin: 0 auto; }
+
+  /* PANELS */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* CARDS */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px;
+  }
+  .stat-card .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-card .value { font-size: 2rem; font-weight: 600; margin-top: 6px; }
+
+  /* TABLE */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .table-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-header h2 { font-size: 1rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th { padding: 10px 16px; text-align: left; font-size: 0.78rem; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  td { padding: 12px 16px; font-size: 0.88rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* BADGE */
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 20px;
+    font-size: 0.75rem; font-weight: 600;
+  }
+  .badge-active   { background: rgba(63,185,80,0.15);  color: var(--success); }
+  .badge-pending  { background: rgba(210,153,34,0.15); color: var(--warn); }
+  .badge-revoked  { background: rgba(248,81,73,0.15);  color: var(--danger); }
+  .badge-suspended{ background: rgba(139,148,158,0.15);color: var(--muted); }
+  .badge-approved { background: rgba(63,185,80,0.15);  color: var(--success); }
+  .badge-rejected { background: rgba(248,81,73,0.15);  color: var(--danger); }
+
+  /* MODAL */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 28px; width: 460px; max-width: 95vw;
+  }
+  .modal h2 { font-size: 1rem; margin-bottom: 18px; }
+  .modal input, .modal select, .modal textarea {
+    width: 100%; padding: 9px 12px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 0.9rem; margin-bottom: 12px;
+  }
+  .modal textarea { height: 80px; resize: vertical; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+  label { font-size: 0.82rem; color: var(--muted); display: block; margin-bottom: 4px; }
+
+  /* AUDIT */
+  .audit-entry {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 16px; margin-bottom: 8px;
+  }
+  .audit-entry .ev-type { color: var(--accent); font-size: 0.8rem; font-weight: 600; }
+  .audit-entry .ev-desc { margin: 4px 0; font-size: 0.9rem; }
+  .audit-entry .ev-meta { color: var(--muted); font-size: 0.75rem; }
+  .hash-chip {
+    font-family: monospace; font-size: 0.7rem; color: var(--muted);
+    background: var(--bg); padding: 2px 6px; border-radius: 4px;
+  }
+
+  .empty { color: var(--muted); text-align: center; padding: 40px; font-size: 0.9rem; }
+  .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
+  .mb16 { margin-bottom: 16px; }
+</style>
+</head>
 <body>
-<h1>DFIR Master Registrar</h1>
-<p>API is running. Full GUI coming next.</p>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>DFIR Master Registrar</h1>
+    <p>Zero-Trust Root of Trust — Authorized Access Only</p>
+    <label>Email</label>
+    <input type="email" id="login-email" placeholder="admin@dfir.local" />
+    <label>Password</label>
+    <input type="password" id="login-password" placeholder="Password" />
+    <button class="btn btn-primary" onclick="doLogin()">Sign In</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="brand">DFIR Master Registrar <span>Root of Trust</span></div>
+    <div id="user-info">
+      <span id="header-name"></span>
+      <button class="btn btn-sm" style="background:var(--border);color:var(--text)" onclick="doLogout()">Sign Out</button>
+    </div>
+  </header>
+  <nav>
+    <div class="nav-tab active" onclick="switchTab('dashboard')">Dashboard</div>
+    <div class="nav-tab" onclick="switchTab('domains')">Domains</div>
+    <div class="nav-tab" onclick="switchTab('packets')">Registration Packets</div>
+    <div class="nav-tab" onclick="switchTab('audit')">Audit Log</div>
+    <div class="nav-tab" onclick="switchTab('revocations')">Revocations</div>
+  </nav>
+  <main>
+
+    <!-- DASHBOARD -->
+    <div id="panel-dashboard" class="panel active">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Total Domains</div><div class="value" id="stat-domains">—</div></div>
+        <div class="stat-card"><div class="label">Active Domains</div><div class="value" style="color:var(--success)" id="stat-active">—</div></div>
+        <div class="stat-card"><div class="label">Pending Packets</div><div class="value" style="color:var(--warn)" id="stat-pending">—</div></div>
+        <div class="stat-card"><div class="label">Revocations</div><div class="value" style="color:var(--danger)" id="stat-revoked">—</div></div>
+      </div>
+      <div class="section-title">Recent Audit Events</div>
+      <div id="dashboard-audit"></div>
+    </div>
+
+    <!-- DOMAINS -->
+    <div id="panel-domains" class="panel">
+      <div class="table-wrap">
+        <div class="table-header">
+          <h2>Registered Domains</h2>
+          <button class="btn btn-success btn-sm" onclick="openModal('modal-new-domain')">+ New Domain</button>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Domain Name</th><th>Organization</th><th>Contact</th><th>Status</th><th>Created</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="domains-tbody"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PACKETS -->
+    <div id="panel-packets" class="panel">
+      <div class="table-wrap">
+        <div class="table-header"><h2>Domain Registration Packets</h2></div>
+        <table>
+          <thead><tr>
+            <th>Packet ID</th><th>Proposed Domain</th><th>Org</th><th>Submitted</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="packets-tbody"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AUDIT -->
+    <div id="panel-audit" class="panel">
+      <div class="section-title">Audit Log — Hash Chained WORM</div>
+      <div id="audit-list"></div>
+    </div>
+
+    <!-- REVOCATIONS -->
+    <div id="panel-revocations" class="panel">
+      <div class="table-wrap">
+        <div class="table-header"><h2>Revocation Records</h2></div>
+        <table>
+          <thead><tr>
+            <th>Target Type</th><th>Target ID</th><th>Reason</th><th>Effective From</th><th>Issued By</th>
+          </tr></thead>
+          <tbody id="revocations-tbody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL: NEW DOMAIN -->
+<div class="modal-bg" id="modal-new-domain">
+  <div class="modal">
+    <h2>Register New Domain</h2>
+    <label>Domain Name (unique identifier)</label>
+    <input type="text" id="nd-name" placeholder="acme-corp" />
+    <label>Organization Name</label>
+    <input type="text" id="nd-org" placeholder="Acme Corporation" />
+    <label>Contact Name</label>
+    <input type="text" id="nd-contact" placeholder="Jane Smith" />
+    <label>Contact Email</label>
+    <input type="email" id="nd-email" placeholder="jane@acme.com" />
+    <div class="modal-actions">
+      <button class="btn" style="background:var(--border);color:var(--text)" onclick="closeModal('modal-new-domain')">Cancel</button>
+      <button class="btn btn-success" onclick="createDomain()">Register Domain</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DOMAIN ACTION -->
+<div class="modal-bg" id="modal-domain-action">
+  <div class="modal">
+    <h2 id="action-modal-title">Update Domain Status</h2>
+    <label>Reason</label>
+    <textarea id="action-reason" placeholder="Provide reason for this action..."></textarea>
+    <div class="modal-actions">
+      <button class="btn" style="background:var(--border);color:var(--text)" onclick="closeModal('modal-domain-action')">Cancel</button>
+      <button class="btn btn-danger" id="action-confirm-btn" onclick="confirmDomainAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PACKET DECISION -->
+<div class="modal-bg" id="modal-packet-decision">
+  <div class="modal">
+    <h2 id="packet-modal-title">Packet Decision</h2>
+    <label>Reason / Notes</label>
+    <textarea id="packet-reason" placeholder="Provide reason..."></textarea>
+    <div class="modal-actions">
+      <button class="btn" style="background:var(--border);color:var(--text)" onclick="closeModal('modal-packet-decision')">Cancel</button>
+      <button class="btn" id="packet-confirm-btn" onclick="confirmPacketDecision()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let currentDomainAction = null;
+let currentPacketAction = null;
+
+// ── AUTH ──────────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  const res = await fetch(`${API}/api/auth/login`, {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({email, password})
+  });
+  const data = await res.json();
+  if (!res.ok) { document.getElementById('login-error').textContent = data.error; return; }
+  document.getElementById('header-name').textContent = data.name + ' (' + data.role + ')';
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  loadDashboard();
+}
+
+async function doLogout() {
+  await fetch(`${API}/api/auth/logout`, {method:'POST', credentials:'include'});
+  location.reload();
+}
+
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ── TABS ──────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'domains')   loadDomains();
+  if (name === 'packets')   loadPackets();
+  if (name === 'audit')     loadAudit();
+  if (name === 'revocations') loadRevocations();
+}
+
+// ── MODAL ─────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── HELPERS ───────────────────────────────────────────
+function badge(status) {
+  const s = (status||'').toLowerCase();
+  return `<span class="badge badge-${s}">${status}</span>`;
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString();
+}
+function shortId(id) {
+  return id ? id.substring(0,8) + '...' : '—';
+}
+
+// ── DASHBOARD ─────────────────────────────────────────
+async function loadDashboard() {
+  const [domains, packets, revocations, audit] = await Promise.all([
+    fetch(`${API}/api/domains`, {credentials:'include'}).then(r=>r.json()),
+    fetch(`${API}/api/packets`, {credentials:'include'}).then(r=>r.json()),
+    fetch(`${API}/api/revocations`, {credentials:'include'}).then(r=>r.json()),
+    fetch(`${API}/api/audit`, {credentials:'include'}).then(r=>r.json()),
+  ]);
+  document.getElementById('stat-domains').textContent = domains.length;
+  document.getElementById('stat-active').textContent = domains.filter(d=>d.Status==='Active').length;
+  document.getElementById('stat-pending').textContent = packets.filter(p=>p.Status==='Pending').length;
+  document.getElementById('stat-revoked').textContent = revocations.length;
+  const container = document.getElementById('dashboard-audit');
+  container.innerHTML = audit.slice(0,8).map(a => `
+    <div class="audit-entry">
+      <div class="ev-type">${a.EventType}</div>
+      <div class="ev-desc">${a.Description}</div>
+      <div class="ev-meta">${fmtDate(a.CreatedAt)} &nbsp; <span class="hash-chip">${a.EntryHash.substring(0,16)}...</span></div>
+    </div>
+  `).join('') || '<div class="empty">No audit events yet.</div>';
+}
+
+// ── DOMAINS ───────────────────────────────────────────
+async function loadDomains() {
+  const domains = await fetch(`${API}/api/domains`, {credentials:'include'}).then(r=>r.json());
+  const tbody = document.getElementById('domains-tbody');
+  if (!domains.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No domains registered.</td></tr>'; return; }
+  tbody.innerHTML = domains.map(d => `
+    <tr>
+      <td><strong>${d.DomainName}</strong><br><span style="color:var(--muted);font-size:0.75rem">${shortId(d.DomainId)}</span></td>
+      <td>${d.OrgName}</td>
+      <td>${d.ContactName}<br><span style="color:var(--muted);font-size:0.75rem">${d.ContactEmail}</span></td>
+      <td>${badge(d.Status)}</td>
+      <td>${fmtDate(d.CreatedAt)}</td>
+      <td>
+        ${d.Status === 'Active' ? `<button class="btn btn-warn btn-sm" onclick="domainAction('${d.DomainId}','Suspended')">Suspend</button> ` : ''}
+        ${d.Status !== 'Revoked' ? `<button class="btn btn-danger btn-sm" onclick="domainAction('${d.DomainId}','Revoked')">Revoke</button>` : ''}
+        ${d.Status === 'Suspended' ? `<button class="btn btn-success btn-sm" onclick="domainAction('${d.DomainId}','Active')">Restore</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function domainAction(domainId, status) {
+  currentDomainAction = {domainId, status};
+  document.getElementById('action-modal-title').textContent = `Set Domain to ${status}`;
+  document.getElementById('action-confirm-btn').textContent = status;
+  document.getElementById('action-reason').value = '';
+  openModal('modal-domain-action');
+}
+
+async function confirmDomainAction() {
+  const reason = document.getElementById('action-reason').value;
+  await fetch(`${API}/api/domains/${currentDomainAction.domainId}/status`, {
+    method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({Status: currentDomainAction.status, Reason: reason})
+  });
+  closeModal('modal-domain-action');
+  loadDomains();
+}
+
+async function createDomain() {
+  const payload = {
+    DomainName:   document.getElementById('nd-name').value,
+    OrgName:      document.getElementById('nd-org').value,
+    ContactName:  document.getElementById('nd-contact').value,
+    ContactEmail: document.getElementById('nd-email').value,
+  };
+  const res = await fetch(`${API}/api/domains`, {
+    method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if (res.ok) {
+    closeModal('modal-new-domain');
+    ['nd-name','nd-org','nd-contact','nd-email'].forEach(id => document.getElementById(id).value = '');
+    switchTab('domains');
+    loadDomains();
+  }
+}
+
+// ── PACKETS ───────────────────────────────────────────
+async function loadPackets() {
+  const packets = await fetch(`${API}/api/packets`, {credentials:'include'}).then(r=>r.json());
+  const tbody = document.getElementById('packets-tbody');
+  if (!packets.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No registration packets.</td></tr>'; return; }
+  tbody.innerHTML = packets.map(p => `
+    <tr>
+      <td><span class="hash-chip">${shortId(p.PacketId)}</span></td>
+      <td>${p.ProposedDomainName}</td>
+      <td>${p.ProposedOrgName}</td>
+      <td>${fmtDate(p.SubmittedAt)}</td>
+      <td>${badge(p.Status)}</td>
+      <td>
+        ${p.Status === 'Pending' ? `
+          <button class="btn btn-success btn-sm" onclick="packetDecision('${p.PacketId}','Approved')">Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="packetDecision('${p.PacketId}','Rejected')">Reject</button>
+        ` : '—'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function packetDecision(packetId, decision) {
+  currentPacketAction = {packetId, decision};
+  document.getElementById('packet-modal-title').textContent = `${decision}: Registration Packet`;
+  const btn = document.getElementById('packet-confirm-btn');
+  btn.textContent = decision;
+  btn.className = `btn btn-sm ${decision === 'Approved' ? 'btn-success' : 'btn-danger'}`;
+  document.getElementById('packet-reason').value = '';
+  openModal('modal-packet-decision');
+}
+
+async function confirmPacketDecision() {
+  const reason = document.getElementById('packet-reason').value;
+  await fetch(`${API}/api/packets/${currentPacketAction.packetId}/decision`, {
+    method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({Decision: currentPacketAction.decision, Reason: reason})
+  });
+  closeModal('modal-packet-decision');
+  loadPackets();
+}
+
+// ── AUDIT ─────────────────────────────────────────────
+async function loadAudit() {
+  const audit = await fetch(`${API}/api/audit`, {credentials:'include'}).then(r=>r.json());
+  const container = document.getElementById('audit-list');
+  container.innerHTML = audit.map(a => `
+    <div class="audit-entry">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="ev-type">${a.EventType}</div>
+        <div style="color:var(--muted);font-size:0.75rem">${fmtDate(a.CreatedAt)}</div>
+      </div>
+      <div class="ev-desc">${a.Description}</div>
+      <div class="ev-meta" style="margin-top:6px">
+        Actor: ${shortId(a.ActorId)} &nbsp;|&nbsp;
+        Target: ${a.TargetType || '—'} ${shortId(a.TargetId)} &nbsp;|&nbsp;
+        Hash: <span class="hash-chip">${a.EntryHash.substring(0,24)}...</span> &nbsp;
+        Prev: <span class="hash-chip">${(a.PreviousHash||'').substring(0,16)}...</span>
+      </div>
+    </div>
+  `).join('') || '<div class="empty">No audit events.</div>';
+}
+
+// ── REVOCATIONS ───────────────────────────────────────
+async function loadRevocations() {
+  const rows = await fetch(`${API}/api/revocations`, {credentials:'include'}).then(r=>r.json());
+  const tbody = document.getElementById('revocations-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No revocations on record.</td></tr>'; return; }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${badge(r.TargetType)}</td>
+      <td><span class="hash-chip">${shortId(r.TargetId)}</span></td>
+      <td>${r.Reason}</td>
+      <td>${fmtDate(r.EffectiveFromUtc)}</td>
+      <td><span class="hash-chip">${shortId(r.IssuedByUserId)}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ── INIT ──────────────────────────────────────────────
+(async () => {
+  const res = await fetch(`${API}/api/auth/me`, {credentials:'include'});
+  if (res.ok) {
+    const user = await res.json();
+    document.getElementById('header-name').textContent = user.DisplayName + ' (' + user.Role + ')';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    loadDashboard();
+  }
+})();
+</script>
 </body>
 </html>
