@@ -1,14 +1,17 @@
-﻿using System.Configuration;
-using System.Data;
+﻿using DFIRNode.Services;
 using System.Windows;
 
 namespace DFIRNode
 {
-    /// <summary>
-    /// Interaction logic for App.xaml
-    /// </summary>
     public partial class App : Application
     {
-    }
+        public static DatabaseService Database { get; private set; } = null!;
 
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+            Database = new DatabaseService();
+            Database.InitializeDatabase();
+        }
+    }
 }
