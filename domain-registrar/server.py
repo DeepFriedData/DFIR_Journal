@@ -282,19 +282,30 @@ def submit_packet():
     data = request.get_json()
     db = get_db()
     packet_id = str(uuid.uuid4())
-    node_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
-    db.execute('''INSERT INTO Nodes (NodeId, NodeName, State, CreatedAt, UpdatedAt)
-                  VALUES (?, ?, 'Unregistered', ?, ?)''',
-               (node_id, data.get('ProposedNodeName','Unknown'), now, now))
+
+    # Preserve the original NodeId from the registration packet
+    node_id = data.get('SourceNodeId') or str(uuid.uuid4())
+
+    # Only create node record if it doesn't already exist
+    existing = db.execute('SELECT NodeId FROM Nodes WHERE NodeId=?', (node_id,)).fetchone()
+    if not existing:
+        db.execute('''INSERT INTO Nodes (NodeId, NodeName, State, CreatedAt, UpdatedAt)
+                      VALUES (?, ?, 'Unregistered', ?, ?)''',
+                   (node_id, data.get('ProposedNodeName','Unknown'), now, now))
+
     db.execute('''INSERT INTO NodeRegistrationPackets
-                  (PacketId, NodeId, DeviceFingerprint, Hostname, TPMInfo, PublicKeyMaterial, ProposedNodeName, ProposedUserId, PacketType, SubmittedAt)
+                  (PacketId, NodeId, DeviceFingerprint, Hostname, TPMInfo, PublicKeyMaterial,
+                   ProposedNodeName, ProposedUserId, PacketType, SubmittedAt)
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-               (packet_id, node_id, data.get('DeviceFingerprint',''), data.get('Hostname',''),
-                data.get('TPMInfo',''), data.get('PublicKeyMaterial',''),
-                data.get('ProposedNodeName',''), data.get('ProposedUserId',''),
-                data.get('PacketType','Registration'), now))
-    write_audit(db, 'PACKET_SUBMITTED', 'system', 'System', 'NodeRegistrationPacket', packet_id, f"Packet submitted: {data.get('Hostname','')}")
+               (packet_id, node_id, data.get('DeviceFingerprint',''),
+                data.get('Hostname',''), data.get('TPMInfo',''),
+                data.get('PublicKeyMaterial',''), data.get('ProposedNodeName',''),
+                data.get('ProposedUserId',''), data.get('PacketType','Registration'), now))
+
+    write_audit(db, 'PACKET_SUBMITTED', 'system', 'System',
+                'NodeRegistrationPacket', packet_id,
+                f"Packet submitted: {data.get('Hostname','')}")
     db.commit()
     return jsonify({'message': 'Packet submitted', 'PacketId': packet_id, 'NodeId': node_id}), 201
 
