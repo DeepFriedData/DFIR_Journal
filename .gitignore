@@ -26,9 +26,11 @@ desktop.ini
 
 # Visual Studio
 .vs/
-*/bin/
-*/obj/
+[Bb]in/
+[Oo]bj/
 *.user
 *.suo
 *.userosscache
 *.sln.docview
+*.userprefs
+*.DotSettings.user
