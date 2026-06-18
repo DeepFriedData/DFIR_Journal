@@ -186,13 +186,12 @@ namespace DFIRNode.Services
             // Store inbound response
             using var cmd1 = conn.CreateCommand();
             cmd1.CommandText = @"
-                INSERT INTO InboundResponses
-                    (ResponseId, ResponseType, PayloadJson, ReceivedAt, AppliedAt, AppliedBy)
-                VALUES ($id, 'RegistrationResponse', $payload, $now, $now, $user)";
+    INSERT INTO InboundResponses
+        (ResponseId, ResponseType, PayloadJson, ReceivedAt, AppliedAt, AppliedBy)
+    VALUES ($id, 'RegistrationResponse', $payload, $now, $now, NULL)";
             cmd1.Parameters.AddWithValue("$id", responseId);
             cmd1.Parameters.AddWithValue("$payload", json);
             cmd1.Parameters.AddWithValue("$now", now);
-            cmd1.Parameters.AddWithValue("$user", importedByUserId);
             cmd1.ExecuteNonQuery();
 
             // Activate node

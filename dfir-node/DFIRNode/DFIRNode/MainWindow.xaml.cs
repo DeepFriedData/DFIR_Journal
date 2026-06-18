@@ -83,11 +83,26 @@ namespace DFIRNode
         private void Export_Click(object sender, RoutedEventArgs e) =>
             ShowPlaceholder("Export Bundle", "Export registration packets and telemetry bundles to Domain Registrar.");
 
-        private void Import_Click(object sender, RoutedEventArgs e) =>
-            ShowPlaceholder("Import Bundle", "Import registration responses and revocation bundles.");
+        private void Import_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new Views.ImportBundleWindow();
+            win.Owner = this;
+            var result = win.ShowDialog();
+            if (result == true && win.ImportSucceeded)
+            {
+                LoadNodeState();
+                StatusBarText.Text = "Node activated successfully.";
+            }
+        }
 
-        private void Register_Click(object sender, RoutedEventArgs e) =>
-            ShowPlaceholder("Node Registration", "Generate a registration packet to submit to the Domain Registrar.");
+        private void Register_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new Views.RegisterNodeWindow();
+            win.Owner = this;
+            var result = win.ShowDialog();
+            if (result == true && win.PacketExported)
+                LoadNodeState();
+        }
 
         private void SignIn_Click(object sender, RoutedEventArgs e) =>
             ShowPlaceholder("Sign In", "Authenticate with your bound user identity.");
