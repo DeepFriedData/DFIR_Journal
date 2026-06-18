@@ -8,13 +8,36 @@ namespace DFIRNode
 {
     public partial class MainWindow : Window
     {
-        private DispatcherTimer _clock;
+        private DispatcherTimer? _clock;
 
         public MainWindow()
         {
             InitializeComponent();
             StartClock();
-            ShowPlaceholder("DFIR Analyst View", "Technical findings, IOCs, timeline of events, and evidence chain.");
+            LoadNodeState();
+            ShowPlaceholder("DFIR Analyst View",
+                "Technical findings, IOCs, timeline of events, and evidence chain.");
+        }
+
+        private void LoadNodeState()
+        {
+            var node = App.Registration.GetNodeIdentity();
+            if (node == null)
+            {
+                NodeStatusText.Text = "UNREGISTERED";
+                NodeNameText.Text = "  |  No Node Identity";
+                StatusBarText.Text = "Ready — Click 'Register Node' to begin registration.";
+            }
+            else
+            {
+                NodeStatusText.Text = node.State.ToUpper();
+                NodeNameText.Text = $"  |  {node.NodeName}";
+                if (node.DomainName != null)
+                    NodeNameText.Text += $"  |  {node.DomainName}";
+                StatusBarText.Text = node.State == "Active"
+                    ? $"Node active. Registration expires: {node.RegistrationExpiryUtc}"
+                    : $"Node state: {node.State}";
+            }
         }
 
         private void StartClock()
