@@ -1,0 +1,146 @@
+﻿<Window x:Class="DFIRNode.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DFIR Journal Node" Height="750" Width="1200"
+        MinHeight="600" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Background="#0d1117">
+    <Window.Resources>
+        <Style x:Key="NavButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#8b949e"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1f2937"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="NavButtonActive" TargetType="Button" BasedOn="{StaticResource NavButton}">
+            <Setter Property="Foreground" Value="#58a6ff"/>
+            <Setter Property="Background" Value="#1f2937"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="28"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" Background="#161b22"
+                BorderBrush="#30363d" BorderThickness="0,0,0,1">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="DFIR" FontSize="16" FontWeight="Bold"
+                               Foreground="#58a6ff" FontFamily="Segoe UI"/>
+                    <TextBlock Text=" Journal Node" FontSize="16"
+                               Foreground="#e6edf3" FontFamily="Segoe UI"/>
+                    <TextBlock Text=" v0.1" FontSize="11" Foreground="#8b949e"
+                               VerticalAlignment="Bottom" Margin="4,0,0,2"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Background="#1a3a1a" CornerRadius="4" Padding="8,3">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="#3fb950"
+                                     VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="NodeStatusText" Text="UNREGISTERED"
+                                       Foreground="#3fb950" FontSize="11"
+                                       FontWeight="SemiBold" FontFamily="Segoe UI"/>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock x:Name="NodeNameText" Text="  |  No Node Identity"
+                               Foreground="#8b949e" FontSize="12" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="CurrentUserText" Text="Not signed in"
+                               Foreground="#8b949e" FontSize="12" VerticalAlignment="Center"/>
+                    <Button Content="  Sign In" Style="{StaticResource NavButton}"
+                            Foreground="#58a6ff" Click="SignIn_Click" Margin="8,0,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210"/>
+                <ColumnDefinition Width="1"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="#161b22">
+                <StackPanel Margin="10,16,10,16">
+                    <TextBlock Text="VIEWS" Foreground="#8b949e" FontSize="10"
+                               FontWeight="SemiBold" Margin="12,0,0,8"/>
+                    <Button x:Name="BtnAnalyst" Content="  DFIR Analyst"
+                            Style="{StaticResource NavButtonActive}"
+                            Click="Nav_Click" Tag="Analyst"/>
+                    <Button x:Name="BtnPrincipal" Content="  Principal Consultant"
+                            Style="{StaticResource NavButton}"
+                            Click="Nav_Click" Tag="Principal"/>
+                    <Button x:Name="BtnEngLead" Content="  Engagement Lead"
+                            Style="{StaticResource NavButton}"
+                            Click="Nav_Click" Tag="EngagementLead"/>
+                    <Button x:Name="BtnAdmin" Content="  Administrative"
+                            Style="{StaticResource NavButton}"
+                            Click="Nav_Click" Tag="Admin"/>
+                    <Button x:Name="BtnCustodian" Content="  Custodian"
+                            Style="{StaticResource NavButton}"
+                            Click="Nav_Click" Tag="Custodian"/>
+                    <Border Height="1" Background="#30363d" Margin="8,16"/>
+                    <TextBlock Text="ACTIONS" Foreground="#8b949e" FontSize="10"
+                               FontWeight="SemiBold" Margin="12,0,0,8"/>
+                    <Button Content="  Engagement Cards"
+                            Style="{StaticResource NavButton}" Click="Cards_Click"/>
+                    <Button Content="  Export Bundle"
+                            Style="{StaticResource NavButton}" Click="Export_Click"/>
+                    <Button Content="  Import Bundle"
+                            Style="{StaticResource NavButton}" Click="Import_Click"/>
+                    <Border Height="1" Background="#30363d" Margin="8,16"/>
+                    <TextBlock Text="REGISTRATION" Foreground="#8b949e" FontSize="10"
+                               FontWeight="SemiBold" Margin="12,0,0,8"/>
+                    <Button x:Name="BtnRegister" Content="  Register Node"
+                            Style="{StaticResource NavButton}"
+                            Foreground="#d29922" Click="Register_Click"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="#30363d"/>
+            <Border Grid.Column="2" Background="#0d1117">
+                <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden"/>
+            </Border>
+        </Grid>
+        <Border Grid.Row="2" Background="#161b22"
+                BorderBrush="#30363d" BorderThickness="0,1,0,0">
+            <Grid Margin="16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusBarText"
+                           Text="Ready — Node unregistered. Export a registration packet to activate."
+                           Foreground="#8b949e" FontSize="11" VerticalAlignment="Center"/>
+                <TextBlock x:Name="ClockText" Grid.Column="1"
+                           Foreground="#8b949e" FontSize="11" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
