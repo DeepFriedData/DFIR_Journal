@@ -360,6 +360,7 @@ def list_packets():
 
 @app.route('/api/packets', methods=['POST'])
 def submit_packet():
+    data.get('PublicKeyMaterial','') or data.get('NodePublicKey',''),
     data = request.get_json()
     db = get_db()
     packet_id = str(uuid.uuid4())
