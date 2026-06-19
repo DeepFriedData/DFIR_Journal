@@ -477,43 +477,60 @@ async function submitDecision(decision) {
 }
 
 async function exportResponse(packetId) {
-  const packets = await fetch(`${API}/api/packets`, {credentials:'include'}).then(r=>r.json());
-  const packet = packets.find(p => p.PacketId === packetId);
-  if (!packet) { alert('Packet not found.'); return; }
+  try {
+    const res = await fetch(`${API}/api/packets/${packetId}/export`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({TOTPSecret: generateTotpSecret()})
+    });
+    if (!res.ok) { alert('Export failed: ' + await res.text()); return; }
+    const pkg = await res.json();
+    currentResponseJson = JSON.stringify(pkg, null, 2);
+    document.getElementById('response-json-view').textContent =
+      `Package Type: ${pkg.PackageType}\nEncrypted: ${pkg.Encrypted}\nIssued: ${pkg.IssuedAt}\nSignature: ${pkg.Signature ? pkg.Signature.substring(0,32) + '...' : 'none'}\n\nReady to download as .node file`;
+    closeModal('modal-packet-decision');
+    openModal('modal-export-response');
+  } catch(e) {
+    alert('Export error: ' + e.message);
+  }
+}
 
-  const nodes = await fetch(`${API}/api/nodes`, {credentials:'include'}).then(r=>r.json());
-  const node = nodes.find(n => n.NodeId === packet.NodeId);
-
-  const identity = await fetch(`${API}/api/identity`, {credentials:'include'}).then(r=>r.json());
-
-  const response = {
-    ResponseType: 'RegistrationResponse',
-    PacketId: packet.PacketId,
-    NodeId: packet.NodeId,
-    DomainId: identity.DomainId || 'domain-not-configured',
-    DomainName: identity.DomainName || 'Domain Registrar',
-    ApprovedAt: new Date().toISOString(),
-    ExpiryUtc: node ? node.RegistrationExpiryUtc : '',
-    ReRegistrationIntervalDays: node ? node.ReRegistrationIntervalDays : 90,
-    Policy: {
-      AllowedRoles: ['Investigator','Analyst','Supervisor'],
-      MaxEngagementCards: 50
-    }
-  };
-
-  currentResponseJson = JSON.stringify(response, null, 2);
-  document.getElementById('response-json-view').textContent = currentResponseJson;
-  closeModal('modal-packet-decision');
-  openModal('modal-export-response');
+function generateTotpSecret() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let secret = '';
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  arr.forEach(b => secret += chars[b % chars.length]);
+  return secret;
 }
 
 function copyResponse() {
   if (currentResponseJson) {
     navigator.clipboard.writeText(currentResponseJson);
-    alert('Response JSON copied to clipboard. Save as a .json file and import into the node.');
+    alert('Response JSON copied to clipboard.');
   }
 }
 
+function downloadResponse() {
+  if (!currentResponseJson) return;
+  try {
+    const parsed = JSON.parse(currentResponseJson);
+    const issued = parsed.IssuedAt ? parsed.IssuedAt.substring(0,10) : 'pkg';
+    const filename = `node_registration_${issued}.node`;
+    const blob = new Blob([currentResponseJson], {type: 'application/octet-stream'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Download failed: ' + e.message);
+  }
+}
 // ── NODES ─────────────────────────────────────────────
 async function loadNodes() {
   const nodes = await fetch(`${API}/api/nodes`, {credentials:'include'}).then(r=>r.json());
