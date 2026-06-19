@@ -205,13 +205,27 @@
 <div class="modal-bg" id="modal-import-packet">
   <div class="modal">
     <h2>Import Node Registration Packet</h2>
-    <label>Paste packet JSON or upload file</label>
-    <textarea id="packet-json" placeholder="Paste registration packet JSON here..." style="height:160px"></textarea>
-    <div id="packet-parse-result" style="display:none">
+    <label>Select packet file or paste JSON</label>
+    <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center">
+      <input type="file" id="packet-file" accept=".json"
+             style="display:none" onchange="loadPacketFile(event)"/>
+      <button class="btn btn-sm" style="background:var(--accent-dim);color:#fff"
+              onclick="document.getElementById('packet-file').click()">
+        Browse File...
+      </button>
+      <span id="packet-filename" style="color:var(--muted);font-size:0.85rem">
+        No file selected
+      </span>
+    </div>
+    <label>Or paste JSON directly</label>
+    <textarea id="packet-json" placeholder="Paste registration packet JSON here..."
+              style="height:120px"></textarea>
+    <div id="packet-preview" style="display:none;margin-top:8px">
       <div class="packet-detail" id="packet-detail-view"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-sm" style="background:var(--border);color:var(--text)" onclick="closeModal('modal-import-packet')">Cancel</button>
+      <button class="btn btn-sm" style="background:var(--border);color:var(--text)"
+              onclick="closeModal('modal-import-packet')">Cancel</button>
       <button class="btn btn-sm btn-success" onclick="importPacket()">Import Packet</button>
     </div>
   </div>
@@ -382,6 +396,25 @@ async function loadPackets() {
       </td>
     </tr>`
   }).join('');
+}
+
+function loadPacketFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  document.getElementById('packet-filename').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('packet-json').value = e.target.result;
+    try {
+      const parsed = JSON.parse(e.target.result);
+      document.getElementById('packet-detail-view').textContent =
+        JSON.stringify(parsed, null, 2);
+      document.getElementById('packet-preview').style.display = 'block';
+    } catch(err) {
+      document.getElementById('packet-preview').style.display = 'none';
+    }
+  };
+  reader.readAsText(file);
 }
 
 async function importPacket() {
@@ -603,3 +636,5 @@ async function loadAudit() {
 </script>
 </body>
 </html>
+
+
