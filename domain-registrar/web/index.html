@@ -84,6 +84,10 @@
   .packet-detail { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px; font-family: monospace; font-size: 0.8rem; color: var(--muted); white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
   .import-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; margin-bottom: 20px; }
   .import-zone:hover { border-color: var(--accent); }
+.bulk-bar { background: var(--surface); border: 1px solid var(--accent-dim); border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; display: none; align-items: center; gap: 12px; }
+.bulk-bar.visible { display: flex; }
+.bulk-count { color: var(--accent); font-size: 0.9rem; font-weight: 600; }
+input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent-dim); }
   .import-zone p { color: var(--muted); margin-top: 8px; font-size: 0.9rem; }
 </style>
 </head>
@@ -636,5 +640,6 @@ async function loadAudit() {
 </script>
 </body>
 </html>
+
 
 
