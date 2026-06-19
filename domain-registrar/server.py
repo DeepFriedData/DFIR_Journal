@@ -7,9 +7,15 @@ import sqlite3
 import uuid
 import hashlib
 import json
+import os
+import base64
+import json as json_lib
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 from flask import Flask, request, jsonify, session, g
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.backends import default_backend
 
 app = Flask(__name__, static_folder='web', static_url_path='')
 app.secret_key = 'DOMAIN_CHANGE_THIS_IN_PRODUCTION'
@@ -72,6 +78,81 @@ def write_audit(db, event_type, actor_id, actor_type, target_type, target_id, de
             (AuditId, EventType, ActorId, ActorType, TargetType, TargetId, Description, PreviousHash, EntryHash, CreatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (audit_id, event_type, actor_id, actor_type, target_type, target_id, description, previous_hash, entry_hash, now))
+
+# ============================================================
+# CRYPTO
+# ============================================================
+
+KEYS_DIR = 'crypto/keys'
+PRIVATE_KEY_PATH = f'{KEYS_DIR}/registrar_private.pem'
+PUBLIC_KEY_PATH  = f'{KEYS_DIR}/registrar_public.pem'
+
+def ensure_keypair():
+    os.makedirs(KEYS_DIR, exist_ok=True)
+    if not os.path.exists(PRIVATE_KEY_PATH):
+        print('[CRYPTO] Generating RSA-2048 keypair...')
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        with open(PRIVATE_KEY_PATH, 'wb') as f:
+            f.write(private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption()
+            ))
+        with open(PUBLIC_KEY_PATH, 'wb') as f:
+            f.write(private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ))
+        print('[CRYPTO] Keypair generated.')
+
+def load_private_key():
+    with open(PRIVATE_KEY_PATH, 'rb') as f:
+        return serialization.load_pem_private_key(f.read(), password=None)
+
+def load_public_key():
+    with open(PUBLIC_KEY_PATH, 'rb') as f:
+        return serialization.load_pem_public_key(f.read())
+
+def sign_payload(payload_bytes):
+    private_key = load_private_key()
+    signature = private_key.sign(
+        payload_bytes,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+    return base64.b64encode(signature).decode()
+
+def encrypt_with_node_pubkey(payload_bytes, node_pubkey_pem):
+    node_pubkey = serialization.load_pem_public_key(node_pubkey_pem.encode())
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives import padding as sym_padding
+    aes_key = os.urandom(32)
+    iv      = os.urandom(16)
+    padder  = sym_padding.PKCS7(128).padder()
+    padded  = padder.update(payload_bytes) + padder.finalize()
+    cipher  = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
+    enc     = cipher.encryptor()
+    ciphertext = enc.update(padded) + enc.finalize()
+    encrypted_key = node_pubkey.encrypt(
+        aes_key,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    return {
+        'encrypted_key': base64.b64encode(encrypted_key).decode(),
+        'iv':            base64.b64encode(iv).decode(),
+        'ciphertext':    base64.b64encode(ciphertext).decode()
+    }
 
 # ============================================================
 # AUTH
@@ -284,10 +365,8 @@ def submit_packet():
     packet_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
-    # Preserve the original NodeId from the registration packet
     node_id = data.get('SourceNodeId') or str(uuid.uuid4())
 
-    # Only create node record if it doesn't already exist
     existing = db.execute('SELECT NodeId FROM Nodes WHERE NodeId=?', (node_id,)).fetchone()
     if not existing:
         db.execute('''INSERT INTO Nodes (NodeId, NodeName, State, CreatedAt, UpdatedAt)
@@ -329,12 +408,93 @@ def decide_packet(packet_id):
     if decision == 'Approved':
         interval = data.get('ReRegistrationIntervalDays', 90)
         expiry = (datetime.now(timezone.utc) + timedelta(days=interval)).isoformat()
-        db.execute('''UPDATE Nodes SET State='Active', RegistrationExpiryUtc=?, LastRegistrationAt=?, 
+        db.execute('''UPDATE Nodes SET State='Active', RegistrationExpiryUtc=?, LastRegistrationAt=?,
                       ReRegistrationIntervalDays=?, UpdatedAt=? WHERE NodeId=?''',
                    (expiry, now, interval, now, packet['NodeId']))
     write_audit(db, f'PACKET_{decision.upper()}', session['user_id'], 'User', 'NodeRegistrationPacket', packet_id, f'Packet {decision}')
     db.commit()
     return jsonify({'message': f'Packet {decision}'})
+
+# ============================================================
+# CRYPTO ENDPOINTS
+# ============================================================
+
+@app.route('/api/crypto/pubkey', methods=['GET'])
+def get_pubkey():
+    try:
+        with open(PUBLIC_KEY_PATH, 'r') as f:
+            return jsonify({'PublicKey': f.read()})
+    except:
+        return jsonify({'error': 'Key not found'}), 404
+
+@app.route('/api/packets/<packet_id>/export', methods=['POST'])
+@login_required
+@admin_required
+def export_node_package(packet_id):
+    db = get_db()
+    data = request.get_json() or {}
+
+    packet = db.execute(
+        'SELECT * FROM NodeRegistrationPackets WHERE PacketId=?', (packet_id,)
+    ).fetchone()
+    if not packet:
+        return jsonify({'error': 'Packet not found'}), 404
+
+    node = db.execute(
+        'SELECT * FROM Nodes WHERE NodeId=?', (packet['NodeId'],)
+    ).fetchone()
+    if not node:
+        return jsonify({'error': 'Node not found'}), 404
+
+    identity = db.execute('SELECT * FROM DomainIdentity LIMIT 1').fetchone()
+
+    totp_secret = data.get('TOTPSecret', '')
+
+    response_payload = {
+        'ResponseType':               'RegistrationResponse',
+        'PacketId':                   packet_id,
+        'NodeId':                     packet['NodeId'],
+        'DomainId':                   identity['DomainId'] if identity else 'domain-not-configured',
+        'DomainName':                 identity['DomainName'] if identity else 'Domain Registrar',
+        'ApprovedAt':                 datetime.now(timezone.utc).isoformat(),
+        'ExpiryUtc':                  node['RegistrationExpiryUtc'] or '',
+        'ReRegistrationIntervalDays': node['ReRegistrationIntervalDays'] or 90,
+        'TOTPSecret':                 totp_secret,
+        'Policy': {
+            'AllowedRoles':       ['Investigator', 'Analyst', 'Supervisor'],
+            'MaxEngagementCards': 50
+        }
+    }
+
+    payload_bytes = json_lib.dumps(response_payload).encode()
+    signature     = sign_payload(payload_bytes)
+
+    with open(PUBLIC_KEY_PATH, 'r') as f:
+        registrar_pubkey = f.read()
+
+    node_pubkey = packet['PublicKeyMaterial']
+
+    node_package = {
+        'PackageVersion':     '1.0',
+        'PackageType':        'NodeRegistrationResponse',
+        'RegistrarPublicKey': registrar_pubkey,
+        'Signature':          signature,
+        'IssuedAt':           datetime.now(timezone.utc).isoformat(),
+    }
+
+    if node_pubkey and node_pubkey.strip():
+        encrypted = encrypt_with_node_pubkey(payload_bytes, node_pubkey)
+        node_package['Encrypted'] = True
+        node_package['Payload']   = encrypted
+    else:
+        node_package['Encrypted'] = False
+        node_package['Payload']   = base64.b64encode(payload_bytes).decode()
+
+    write_audit(db, 'NODE_PACKAGE_EXPORTED', session['user_id'], 'User',
+                'NodeRegistrationPacket', packet_id, 'Node package exported as .node file')
+    db.commit()
+
+    return jsonify(node_package)
 
 # ============================================================
 # ENGAGEMENT CARDS
@@ -412,18 +572,18 @@ def export_bundle():
     db = get_db()
     now = datetime.now(timezone.utc).isoformat()
     identity = db.execute('SELECT * FROM DomainIdentity LIMIT 1').fetchone()
-    nodes = db.execute('SELECT * FROM Nodes').fetchall()
-    cards = db.execute('SELECT * FROM EngagementCards').fetchall()
-    packets = db.execute('SELECT * FROM NodeRegistrationPackets WHERE Status="Approved"').fetchall()
+    nodes    = db.execute('SELECT * FROM Nodes').fetchall()
+    cards    = db.execute('SELECT * FROM EngagementCards').fetchall()
+    packets  = db.execute('SELECT * FROM NodeRegistrationPackets WHERE Status="Approved"').fetchall()
     bundle = {
-        'BundleType': 'DomainTelemetry',
-        'GeneratedAt': now,
+        'BundleType':     'DomainTelemetry',
+        'GeneratedAt':    now,
         'DomainIdentity': dict(identity) if identity else {},
-        'Nodes': [dict(n) for n in nodes],
-        'EngagementCards': [dict(c) for c in cards],
-        'ApprovedPackets': [dict(p) for p in packets]
+        'Nodes':          [dict(n) for n in nodes],
+        'EngagementCards':[dict(c) for c in cards],
+        'ApprovedPackets':[dict(p) for p in packets]
     }
-    bundle_id = str(uuid.uuid4())
+    bundle_id   = str(uuid.uuid4())
     bundle_json = json.dumps(bundle, indent=2)
     db.execute('''INSERT INTO OutboundBundles (BundleId, BundleType, PayloadJson, ExportedAt, ExportedBy)
                   VALUES (?, 'UsageTelemetry', ?, ?, ?)''',
@@ -445,6 +605,7 @@ def index():
 # ============================================================
 
 if __name__ == '__main__':
+    ensure_keypair()
     init_db()
     print('[START] Domain Registrar running on http://localhost:5001')
     app.run(host='0.0.0.0', port=5001, debug=False)
